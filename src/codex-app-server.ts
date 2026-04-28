@@ -56,11 +56,18 @@ export class CodexAppServerClient {
   }
 
   async ensureReady(): Promise<void> {
+    if (this.closed) {
+      throw new Error("Codex app-server client is closed.");
+    }
+
     if (this.initialized) {
       return this.initialized;
     }
 
-    this.initialized = this.start();
+    this.initialized = this.start().catch((error: unknown) => {
+      this.resetProcess();
+      throw error;
+    });
     return this.initialized;
   }
 
@@ -80,7 +87,12 @@ export class CodexAppServerClient {
       });
     });
 
-    this.write(payload);
+    try {
+      this.write(payload);
+    } catch (error) {
+      this.pending.delete(id);
+      throw error;
+    }
     return promise;
   }
 
@@ -105,6 +117,7 @@ export class CodexAppServerClient {
       // Ignore process shutdown failures.
     }
     this.proc = null;
+    this.initialized = null;
   }
 
   private async start(): Promise<void> {
@@ -128,8 +141,12 @@ export class CodexAppServerClient {
       }
     });
 
-    this.proc.on("error", (error) => this.failAll(error));
+    this.proc.on("error", (error) => {
+      this.resetProcess();
+      this.failAll(error);
+    });
     this.proc.on("exit", (code, signal) => {
+      this.resetProcess();
       if (this.closed) {
         return;
       }
@@ -151,6 +168,7 @@ export class CodexAppServerClient {
 
   private write(message: unknown): void {
     if (!this.proc?.stdin.writable) {
+      this.resetProcess();
       throw new Error("Codex app-server stdin is not writable");
     }
 
@@ -200,6 +218,11 @@ export class CodexAppServerClient {
     }
     this.pending.clear();
     console.warn(`codex app-server client: ${formatLogError(error)}`);
+  }
+
+  private resetProcess(): void {
+    this.proc = null;
+    this.initialized = null;
   }
 }
 
