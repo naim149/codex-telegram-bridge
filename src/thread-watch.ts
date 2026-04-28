@@ -181,12 +181,22 @@ export class ThreadWatchService {
 
     try {
       for (const watch of this.listWatches()) {
+        const key = watchKey(watch.contextKey, watch.threadId);
+        const before = { ...watch };
         const now = Date.now();
         const current = await this.reader.readThread(watch.threadId);
         const { previousState, changed } = this.applySnapshot(watch, current, now);
 
         if (changed && previousState && shouldNotifyTransition(previousState, current.state)) {
-          await onTransition({ watch: { ...watch }, previousState, current });
+          try {
+            await onTransition({ watch: { ...watch }, previousState, current });
+          } catch (error) {
+            this.watches.set(key, before);
+            console.warn(
+              "Thread watch notification failed; will retry:",
+              error instanceof Error ? error.message : String(error),
+            );
+          }
         }
       }
     } finally {

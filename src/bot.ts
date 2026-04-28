@@ -179,6 +179,7 @@ export function createBot(config: TeleCodexConfig, registry: SessionRegistry): B
       });
     } catch (error) {
       console.error("Failed to send watch notification:", formatLogError(error));
+      throw error;
     }
   });
 
