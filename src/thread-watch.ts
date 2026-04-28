@@ -242,7 +242,7 @@ export class ThreadWatchService {
       }
     }
 
-    if (!isActive && wasActive && (current.state === "idle" || current.state === "failed")) {
+    if (!isActive && (wasActive || watch.runningStartedAt) && (current.state === "idle" || current.state === "failed")) {
       const startedAt = watch.runningStartedAt ?? watch.createdAt;
       watch.lastRunDurationMs = Math.max(0, now - startedAt);
       watch.completedAt = now;
