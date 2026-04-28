@@ -1,0 +1,51 @@
+{
+  "name": "codex-telegram-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Telegram control surface for Codex sessions.",
+  "license": "MIT",
+  "author": "Naim",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/naim149/codex-telegram-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/naim149/codex-telegram-bridge/issues"
+  },
+  "homepage": "https://github.com/naim149/codex-telegram-bridge#readme",
+  "keywords": [
+    "codex",
+    "telegram",
+    "bot",
+    "automation",
+    "local-first"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "check": "node --version && npm --version && codex --version"
+  },
+  "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
+    "@openai/codex": "^0.125.0",
+    "@openai/codex-sdk": "^0.125.0",
+    "grammy": "^1.41.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "parakeet-coreml": "^2.2.0"
+  }
+}

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime output
+logs/
+*.log
+*.pid
+.telecodex/
+
+# Build and coverage output
+dist/
+coverage/
+.turbo/
+.cache/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Never vendor local Codex auth/session state into this repo
+.codex/
+auth.json
+session_index.jsonl
+sessions/
