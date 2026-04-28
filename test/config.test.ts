@@ -308,13 +308,21 @@ describe("loadConfig", () => {
     process.env.TELEGRAM_BOT_TOKEN = "bot-token";
     process.env.TELEGRAM_ALLOWED_USER_IDS = "123";
     process.env.ENABLE_GROUP_CHATS = "true";
-    process.env.TELEGRAM_ALLOWED_CHAT_IDS = "100,200";
+    process.env.TELEGRAM_ALLOWED_CHAT_IDS = "100,-200";
 
     const config = loadConfig();
 
     expect(config.enableGroupChats).toBe(true);
-    expect(config.telegramAllowedChatIds).toEqual([100, 200]);
-    expect(config.telegramAllowedChatIdSet).toEqual(new Set([100, 200]));
+    expect(config.telegramAllowedChatIds).toEqual([100, -200]);
+    expect(config.telegramAllowedChatIdSet).toEqual(new Set([100, -200]));
+  });
+
+  it("rejects zero chat ids in the group chat allowlist", () => {
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.TELEGRAM_ALLOWED_USER_IDS = "123";
+    process.env.TELEGRAM_ALLOWED_CHAT_IDS = "0";
+
+    expect(() => loadConfig()).toThrow("Invalid Telegram id in TELEGRAM_ALLOWED_CHAT_IDS: 0");
   });
 
   it("parses ENABLE_TELEGRAM_REACTIONS boolean values", () => {

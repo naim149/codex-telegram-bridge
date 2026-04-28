@@ -55,6 +55,7 @@ export function loadConfig(): TeleCodexConfig {
   const telegramAllowedChatIds = parseOptionalNumericIds(
     optionalString(process.env.TELEGRAM_ALLOWED_CHAT_IDS),
     "TELEGRAM_ALLOWED_CHAT_IDS",
+    { allowNegative: true },
   );
   const defaultWorkspace = resolveDefaultWorkspace();
   const allowedProjectRoots = parseAllowedProjectRoots(
@@ -222,7 +223,7 @@ function optionalString(value: string | undefined): string | undefined {
 }
 
 function parseAllowedUserIds(raw: string): number[] {
-  const ids = parseOptionalNumericIds(raw, "TELEGRAM_ALLOWED_USER_IDS");
+  const ids = parseOptionalNumericIds(raw, "TELEGRAM_ALLOWED_USER_IDS", { allowNegative: false });
 
   if (ids.length === 0) {
     throw new Error("TELEGRAM_ALLOWED_USER_IDS must contain at least one user id");
@@ -231,14 +232,19 @@ function parseAllowedUserIds(raw: string): number[] {
   return ids;
 }
 
-function parseOptionalNumericIds(raw: string | undefined, envName: string): number[] {
+function parseOptionalNumericIds(
+  raw: string | undefined,
+  envName: string,
+  options: { allowNegative: boolean },
+): number[] {
   return (raw ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean)
     .map((value) => {
       const parsed = Number(value);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
+      const validRange = options.allowNegative ? parsed !== 0 : parsed > 0;
+      if (!Number.isInteger(parsed) || !validRange) {
         throw new Error(`Invalid Telegram id in ${envName}: ${value}`);
       }
       return parsed;
