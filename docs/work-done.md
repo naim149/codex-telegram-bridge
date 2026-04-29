@@ -31,6 +31,7 @@ Implemented in this repo:
 - Telegram `/status`
 - Telegram `/active`, `/watch`, `/watches`, and `/unwatch`
 - Telegram `/usage` and `/cost`
+- Telegram `/limits`
 - project-specific usage filtering
 - workspace path normalization to avoid duplicate `\\?\` and normal Windows
   paths

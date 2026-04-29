@@ -20,6 +20,7 @@ describe("bot-ui", () => {
       expect(plain).toContain("/retry");
       expect(plain).toContain("/launch_profiles");
       expect(plain).toContain("/usage");
+      expect(plain).toContain("/limits");
       expect(plain).toContain("/active");
       expect(plain).toContain("/watch");
       expect(plain).toContain("/watches");
@@ -29,7 +30,7 @@ describe("bot-ui", () => {
     it("lists all 24 commands", () => {
       const { plain } = renderHelpMessage();
       const commandMatches = plain.match(/\/\w+/g) ?? [];
-      expect(commandMatches.length).toBe(24);
+      expect(commandMatches.length).toBe(25);
     });
 
     it("returns valid HTML with bold tags", () => {

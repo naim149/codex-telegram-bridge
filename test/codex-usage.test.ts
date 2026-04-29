@@ -264,4 +264,71 @@ describe("codex-usage", () => {
       expect(model.estimatedCostUsd).toBeCloseTo(1.7325, 8);
     }
   });
+
+  it("returns the latest observed rate-limit snapshot", async () => {
+    const sessionsDir = path.join("/Users/tester", ".codex", "sessions");
+    mockDbState.rows = [];
+    mockFs.existsSync.mockImplementation((targetPath: string) => targetPath === sessionsDir);
+    mockFs.readdirSync.mockImplementation((targetPath: string) => {
+      if (targetPath === sessionsDir) {
+        return [
+          dirent("rollout-2026-04-23T10-00-00-11111111-1111-1111-1111-111111111111.jsonl", "file"),
+          dirent("rollout-2026-04-23T11-00-00-22222222-2222-2222-2222-222222222222.jsonl", "file"),
+        ];
+      }
+      return [];
+    });
+    mockFs.readFileSync.mockImplementation((targetPath: string) => {
+      if (String(targetPath).includes("11111111-1111-1111-1111-111111111111")) {
+        return JSON.stringify({
+          timestamp: "2026-04-23T10:00:00.000Z",
+          type: "event_msg",
+          payload: {
+            type: "token_count",
+            info: null,
+            rate_limits: {
+              limit_id: "codex",
+              plan_type: "plus",
+              primary: { used_percent: 20, window_minutes: 300, resets_at: 1_777_000_000 },
+              secondary: { used_percent: 40, window_minutes: 10080, resets_at: 1_778_000_000 },
+            },
+          },
+        });
+      }
+
+      return JSON.stringify({
+        timestamp: "2026-04-23T11:00:00.000Z",
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: null,
+          rate_limits: {
+            limit_id: "codex",
+            plan_type: "pro",
+            primary: { used_percent: 12.5, window_minutes: 300, resets_at: 1_777_100_000 },
+            secondary: { used_percent: 55, window_minutes: 10080, resets_at: 1_778_100_000 },
+          },
+        },
+      });
+    });
+
+    const { getLatestRateLimitSummary } = await import("../src/codex-usage.js");
+    const summary = getLatestRateLimitSummary();
+
+    expect(summary).toMatchObject({
+      limitId: "codex",
+      planType: "pro",
+      primary: {
+        usedPercent: 12.5,
+        remainingPercent: 87.5,
+        windowMinutes: 300,
+      },
+      secondary: {
+        usedPercent: 55,
+        remainingPercent: 45,
+        windowMinutes: 10080,
+      },
+    });
+    expect(summary?.observedAt.toISOString()).toBe("2026-04-23T11:00:00.000Z");
+  });
 });

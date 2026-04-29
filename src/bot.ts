@@ -37,7 +37,10 @@ import {
   type CodexSandboxMode,
 } from "./codex-launch.js";
 import {
+  getLatestRateLimitSummary,
   summarizeWorkspaceUsage,
+  type RateLimitSummary,
+  type RateLimitWindowSummary,
   type ThreadUsageSummary,
   type TokenTotals,
   type WorkspaceUsageSummary,
@@ -1484,6 +1487,22 @@ export function createBot(config: TeleCodexConfig, registry: SessionRegistry): B
     });
   });
 
+  bot.command(["limits", "ratelimit"], async (ctx) => {
+    const summary = getLatestRateLimitSummary();
+    if (!summary) {
+      await safeReply(ctx, "No rate-limit snapshot found yet.", {
+        fallbackText: "No rate-limit snapshot found yet.",
+      });
+      return;
+    }
+
+    const rendered = renderRateLimitSummary(summary);
+    await safeReply(ctx, rendered.text, {
+      fallbackText: rendered.fallbackText,
+      parseMode: rendered.parseMode,
+    });
+  });
+
   const openLaunchProfilesPicker = async (ctx: Context): Promise<void> => {
     const chatId = ctx.chat?.id;
     if (!chatId) {
@@ -1752,8 +1771,7 @@ export function createBot(config: TeleCodexConfig, registry: SessionRegistry): B
     });
     pendingSessionButtons.set(contextKey, sessionButtons);
     const keyboard = paginateKeyboard(sessionButtons, 0, "sess");
-    const modeHint = renderSessionListModeHint(listMode);
-    const heading = `Recent ${formatSessionListModeLabel(listMode)} (${orderedSessions.length}):\nTap to switch.${modeHint ? `\n${modeHint}` : ""}`;
+    const heading = `Recent ${formatSessionListModeLabel(listMode)} (${orderedSessions.length}):\nTap to switch.`;
 
     await safeReply(ctx, `<b>${escapeHTML(heading)}</b>`, {
       fallbackText: heading,
@@ -2751,6 +2769,7 @@ export async function registerCommands(bot: Bot<Context>): Promise<void> {
     { command: "watches", description: "List watched sessions" },
     { command: "unwatch", description: "Stop watching a session" },
     { command: "usage", description: "Token and cost totals" },
+    { command: "limits", description: "Latest Codex rate limits" },
     { command: "sessions", description: "Browse & switch sessions" },
     { command: "abort", description: "Cancel current operation" },
     { command: "model", description: "View & change model" },
@@ -2789,18 +2808,6 @@ function formatSessionListModeLabel(mode: SessionListMode | null): string {
     case "main":
     case null:
       return "main sessions";
-  }
-}
-
-function renderSessionListModeHint(mode: SessionListMode | null): string {
-  switch (mode) {
-    case "all":
-      return "Use /sessions to hide related sessions.";
-    case "subagents":
-      return "Use /sessions for main sessions.";
-    case "main":
-    case null:
-      return "Use /sessions all to include related sessions.";
   }
 }
 
@@ -2879,9 +2886,6 @@ function renderActiveThreads(active: ThreadStatusSnapshot[]): RenderedText {
     htmlLines.push(escapeHTML(line), `<code>${escapeHTML(stats)}</code>`);
   }
 
-  plainLines.push("", "Use /watch to choose one.");
-  htmlLines.push("", "Use <code>/watch</code> to choose one.");
-
   return {
     text: htmlLines.join("\n"),
     fallbackText: plainLines.join("\n"),
@@ -2944,9 +2948,6 @@ function renderWatches(watches: WatchRecord[]): RenderedText {
     plainLines.push(line, `   ${stats}`);
     htmlLines.push(escapeHTML(line), `<code>${escapeHTML(stats)}</code>`);
   }
-
-  plainLines.push("", "Use /unwatch to remove one.");
-  htmlLines.push("", "Use <code>/unwatch</code> to remove one.");
 
   return { text: htmlLines.join("\n"), fallbackText: plainLines.join("\n"), parseMode: "HTML" };
 }
@@ -3531,6 +3532,54 @@ function renderUsageSummary(
   };
 }
 
+function renderRateLimitSummary(summary: RateLimitSummary): RenderedText {
+  const observed = formatRelativeTime(summary.observedAt);
+  const plainLines = [
+    "Rate limits:",
+    summary.planType ? `Plan: ${summary.planType}` : undefined,
+    summary.limitId ? `Limit: ${summary.limitId}` : undefined,
+    `Observed: ${observed}`,
+    summary.primary ? formatRateLimitWindowPlain("5h", summary.primary) : undefined,
+    summary.secondary ? formatRateLimitWindowPlain("weekly", summary.secondary) : undefined,
+    summary.rateLimitReachedType ? `Reached: ${summary.rateLimitReachedType}` : undefined,
+  ].filter((line): line is string => Boolean(line));
+
+  const htmlLines = [
+    "<b>Rate limits:</b>",
+    summary.planType ? `<b>Plan:</b> <code>${escapeHTML(summary.planType)}</code>` : undefined,
+    summary.limitId ? `<b>Limit:</b> <code>${escapeHTML(summary.limitId)}</code>` : undefined,
+    `<b>Observed:</b> <code>${escapeHTML(observed)}</code>`,
+    summary.primary ? formatRateLimitWindowHTML("5h", summary.primary) : undefined,
+    summary.secondary ? formatRateLimitWindowHTML("weekly", summary.secondary) : undefined,
+    summary.rateLimitReachedType
+      ? `<b>Reached:</b> <code>${escapeHTML(summary.rateLimitReachedType)}</code>`
+      : undefined,
+  ].filter((line): line is string => Boolean(line));
+
+  return {
+    text: htmlLines.join("\n"),
+    fallbackText: plainLines.join("\n"),
+    parseMode: "HTML",
+  };
+}
+
+function formatRateLimitWindowPlain(label: string, window: RateLimitWindowSummary): string {
+  return `${label}: ${formatPercent(window.usedPercent)} used | ${formatPercent(window.remainingPercent)} left${formatResetSuffix(window)}`;
+}
+
+function formatRateLimitWindowHTML(label: string, window: RateLimitWindowSummary): string {
+  return `<b>${escapeHTML(label)}:</b> <code>${escapeHTML(`${formatPercent(window.usedPercent)} used | ${formatPercent(window.remainingPercent)} left${formatResetSuffix(window)}`)}</code>`;
+}
+
+function formatResetSuffix(window: RateLimitWindowSummary): string {
+  if (!window.resetsAt) {
+    return "";
+  }
+
+  const remainingMs = window.resetsAt.getTime() - Date.now();
+  return remainingMs > 0 ? ` | resets in ${formatLimitDuration(remainingMs)}` : " | reset due";
+}
+
 function formatRuntimeState(state: CodexSessionStatusSnapshot["state"]): string {
   switch (state) {
     case "not_started":
@@ -3705,6 +3754,10 @@ function formatUsd(value: number | undefined): string {
   return `$${value.toFixed(4)}`;
 }
 
+function formatPercent(value: number): string {
+  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
+}
+
 function formatDuration(valueMs: number): string {
   const totalMinutes = Math.round(valueMs / 60_000);
   const hours = Math.floor(totalMinutes / 60);
@@ -3715,6 +3768,21 @@ function formatDuration(valueMs: number): string {
   }
   if (hours > 0) {
     return `${hours}h`;
+  }
+  return `${minutes}m`;
+}
+
+function formatLimitDuration(valueMs: number): string {
+  const totalMinutes = Math.max(0, Math.round(valueMs / 60_000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  }
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   }
   return `${minutes}m`;
 }

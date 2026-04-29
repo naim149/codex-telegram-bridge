@@ -177,6 +177,7 @@ Usage:
 - `/usage <project>` filters usage by project when multiple roots are
   configured.
 - `/cost` is an alias for `/usage`.
+- `/limits` shows the latest observed Codex rate-limit snapshot.
 
 Live turn controls:
 

@@ -179,6 +179,7 @@ Target command set:
 | `/watches` | List watched sessions |
 | `/unwatch` | Stop watching a session |
 | `/usage` | Show token, cost, and work-time estimates |
+| `/limits` | Show latest observed Codex rate limits |
 | `/model` | Pick model |
 | `/effort` | Pick reasoning effort |
 | `/launch_profiles` | Pick launch profile |

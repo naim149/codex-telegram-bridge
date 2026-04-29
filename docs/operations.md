@@ -159,6 +159,7 @@ From the allowlisted Telegram account:
 4. Send `/active`.
 5. Send `/watch` and choose an active Codex session if one exists.
 6. Send `/usage` and choose a project if prompted.
+7. Send `/limits`.
 
 Expected result:
 
@@ -168,6 +169,7 @@ Expected result:
 - `/watch` can subscribe to an active detected session.
 - `/usage` does not mix unrelated project totals when project roots are
   configured.
+- `/limits` reports the latest observed Codex rate-limit snapshot.
 
 ## Common Problems
 

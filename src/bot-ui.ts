@@ -21,6 +21,7 @@ export function renderHelpMessage(): DualText {
         ["/watches", "List watched sessions"],
         ["/unwatch", "Stop watching a session"],
         ["/usage", "Token and cost totals"],
+        ["/limits", "Latest Codex rate limits"],
         ["/sessions", "Browse & switch sessions"],
         ["/attach", "Attach an existing session"],
         ["/handback", "Resume locally"],

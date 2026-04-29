@@ -32,6 +32,20 @@ type RolloutTokenUsage = {
   total_tokens?: unknown;
 };
 
+type RolloutRateLimitWindow = {
+  used_percent?: unknown;
+  window_minutes?: unknown;
+  resets_at?: unknown;
+};
+
+type RolloutRateLimits = {
+  limit_id?: unknown;
+  plan_type?: unknown;
+  primary?: RolloutRateLimitWindow;
+  secondary?: RolloutRateLimitWindow;
+  rate_limit_reached_type?: unknown;
+};
+
 const betterSqlite3Module = await import("better-sqlite3").catch(() => null);
 const BetterSqlite3 = (
   (betterSqlite3Module as { default?: DatabaseCtor } | null)?.default ??
@@ -102,6 +116,22 @@ export interface WorkspaceUsageSummary {
   unsupportedModels: string[];
   byModel: ModelUsageSummary[];
   threads: ThreadUsageSummary[];
+}
+
+export interface RateLimitWindowSummary {
+  usedPercent: number;
+  remainingPercent: number;
+  windowMinutes: number;
+  resetsAt?: Date;
+}
+
+export interface RateLimitSummary {
+  observedAt: Date;
+  limitId?: string;
+  planType?: string;
+  primary?: RateLimitWindowSummary;
+  secondary?: RateLimitWindowSummary;
+  rateLimitReachedType?: string;
 }
 
 export function summarizeWorkspaceUsage(workspace: string): WorkspaceUsageSummary | null {
@@ -201,6 +231,24 @@ export function summarizeWorkspaceUsage(workspace: string): WorkspaceUsageSummar
   };
 }
 
+export function getLatestRateLimitSummary(): RateLimitSummary | null {
+  const rolloutIndex = buildRolloutIndex();
+  let latest: RateLimitSummary | null = null;
+
+  for (const rolloutPath of rolloutIndex.values()) {
+    const summary = parseRolloutRateLimits(rolloutPath);
+    if (!summary) {
+      continue;
+    }
+
+    if (!latest || summary.observedAt.getTime() > latest.observedAt.getTime()) {
+      latest = summary;
+    }
+  }
+
+  return latest;
+}
+
 type ThreadMetadata = {
   id: string;
   workspace: string;
@@ -294,6 +342,54 @@ function buildRolloutIndex(): Map<string, string> {
   }
 
   return filesByThread;
+}
+
+function parseRolloutRateLimits(filePath: string): RateLimitSummary | null {
+  let content: string;
+  try {
+    content = readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+
+  let latest: RateLimitSummary | null = null;
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue;
+    }
+
+    let item: any;
+    try {
+      item = JSON.parse(line);
+    } catch {
+      continue;
+    }
+
+    if (item?.type !== "event_msg" || item?.payload?.type !== "token_count") {
+      continue;
+    }
+
+    const observedAt = parseEventTimestamp(item?.timestamp);
+    const rateLimits = item.payload?.rate_limits as RolloutRateLimits | undefined;
+    if (!observedAt || !rateLimits) {
+      continue;
+    }
+
+    const summary: RateLimitSummary = {
+      observedAt,
+      limitId: stringValue(rateLimits.limit_id),
+      planType: stringValue(rateLimits.plan_type),
+      primary: parseRateLimitWindow(rateLimits.primary),
+      secondary: parseRateLimitWindow(rateLimits.secondary),
+      rateLimitReachedType: stringValue(rateLimits.rate_limit_reached_type),
+    };
+
+    if (summary.primary || summary.secondary) {
+      latest = summary;
+    }
+  }
+
+  return latest;
 }
 
 function parseRolloutUsage(filePath: string): RolloutSummary | null {
@@ -434,6 +530,31 @@ function addTotals(target: TokenTotals, source: TokenTotals): void {
 
 function numberValue(value: unknown): number {
   return typeof value === "number" ? value : Number(value ?? 0) || 0;
+}
+
+function optionalNumberValue(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function parseRateLimitWindow(value: RolloutRateLimitWindow | undefined): RateLimitWindowSummary | undefined {
+  const usedPercent = optionalNumberValue(value?.used_percent);
+  const windowMinutes = optionalNumberValue(value?.window_minutes);
+  if (usedPercent === undefined || windowMinutes === undefined) {
+    return undefined;
+  }
+
+  const resetSeconds = optionalNumberValue(value?.resets_at);
+  return {
+    usedPercent,
+    remainingPercent: Math.max(0, 100 - usedPercent),
+    windowMinutes,
+    resetsAt: resetSeconds === undefined ? undefined : new Date(resetSeconds * 1000),
+  };
 }
 
 function parseEventTimestamp(value: unknown): Date | undefined {

@@ -125,6 +125,7 @@ Ask the user to send these Telegram commands:
 3. `/session`
 4. `/active`
 5. `/usage`
+6. `/limits`
 
 Expected:
 
@@ -132,6 +133,7 @@ Expected:
 - `/auth` reports a valid Codex login.
 - `/active` sees sessions under monitored roots.
 - `/usage` reports the intended project scope.
+- `/limits` reports the latest observed 5-hour and weekly Codex limit windows.
 
 ## Final Report Template
 
